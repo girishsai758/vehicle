@@ -20,12 +20,11 @@ jobs:
           aws-region: ${{ secrets.AWS_DEFAULT_REGION }}
 
       - name: Install and start Docker
-        # Ensure docker binary and daemon available before any action that uses docker
         run: |
           sudo apt-get update
+          sudo apt-get remove -y containerd
           sudo apt-get install -y docker.io
           sudo systemctl start docker
-          # show docker version / info for debug
           docker --version || sudo docker --version
           docker info || sudo docker info || true
 
