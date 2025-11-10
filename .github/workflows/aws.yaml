@@ -50,54 +50,46 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_DEFAULT_REGION }}
 
-      - name: Ensure aws CLI and docker are present (self-hosted)
+      - name: Detect usable docker command (self-hosted)
+        id: docker-cmd
         run: |
-          set -e
-          # Check/install AWS CLI v2 if missing
-          if ! command -v aws >/dev/null 2>&1; then
-            echo "AWS CLI not found — attempting to install AWS CLI v2"
-            sudo apt-get update
-            sudo apt-get install -y unzip curl || true
-            curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o /tmp/awscliv2.zip
-            unzip /tmp/awscliv2.zip -d /tmp
-            sudo /tmp/aws/install || true
-            rm -rf /tmp/aws /tmp/awscliv2.zip
+          # Detect whether the runner user can access the Docker daemon
+          # If docker info works as the user, we use "docker"
+          # If only sudo docker works, use "sudo docker"
+          # Otherwise fail early with a clear message.
+          if docker info >/dev/null 2>&1; then
+            echo "cmd=docker" >> "$GITHUB_OUTPUT"
+            echo "Detected: docker works for this user"
+          elif sudo docker info >/dev/null 2>&1; then
+            echo "cmd=sudo docker" >> "$GITHUB_OUTPUT"
+            echo "Detected: only sudo docker works"
           else
-            echo "aws found: $(aws --version)"
+            echo "cmd=none" >> "$GITHUB_OUTPUT"
+            echo "ERROR: docker cannot access the daemon even with sudo. Please ensure docker is installed and the runner user can access /var/run/docker.sock (add runner user to docker group or allow sudo)."
+            exit 1
           fi
-
-          # Check/install docker if missing
-          if ! command -v docker >/dev/null 2>&1; then
-            echo "Docker not found — attempting to install docker.io"
-            sudo apt-get update
-            sudo apt-get install -y docker.io || {
-              echo "docker.io install failed; consider installing Docker CE on the host as an administrator."
-              exit 1
-            }
-            sudo systemctl enable --now docker
-            echo "Added docker; docker version: $(sudo docker --version || true)"
-          else
-            echo "docker found: $(docker --version)"
-          fi
+        shell: bash
 
       - name: Debug docker environment (self-hosted)
         run: |
           echo "USER: $(whoami)"
           which docker || echo "docker not found in PATH"
+          echo "Client version:"
           docker --version || sudo docker --version || true
+          echo "Trying docker info (may require sudo):"
           docker info || sudo docker info || echo "daemon not accessible"
           echo "Groups: $(id -Gn)"
+          echo "Using docker command: ${{ steps.docker-cmd.outputs.cmd }}"
 
-      - name: Login to Amazon ECR (manual fallback - use sudo if docker requires it)
+      - name: Login to Amazon ECR (manual fallback - will use detected docker command)
         if: always()
         env:
           AWS_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
           AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
         run: |
+          DOCKER_CMD="${{ steps.docker-cmd.outputs.cmd }}"
           aws ecr get-login-password --region "$AWS_REGION" \
-            | sudo docker login --username AWS --password-stdin "$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com" \
-            || aws ecr get-login-password --region "$AWS_REGION" \
-            | docker login --username AWS --password-stdin "$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com"
+            | $DOCKER_CMD login --username AWS --password-stdin "$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com"
 
       - name: Run Docker Image to serve users
         env:
@@ -105,7 +97,8 @@ jobs:
           ECR_REPOSITORY: ${{ secrets.ECR_REPO }}
           IMAGE_TAG: latest
         run: |
-          sudo docker pull $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          sudo docker stop vehicle-app || true
-          sudo docker rm vehicle-app || true
-          sudo docker run -d --name vehicle-app -p 80:5000 $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          DOCKER_CMD="${{ steps.docker-cmd.outputs.cmd }}"
+          $DOCKER_CMD pull $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          $DOCKER_CMD stop vehicle-app || true
+          $DOCKER_CMD rm vehicle-app || true
+          $DOCKER_CMD run -d --name vehicle-app -p 80:5000 $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
