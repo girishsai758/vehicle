@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vehicle Insurance Prediction</title>
+    <link href="{{ url_for('static', path='/style.css') }}" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <h1>🚗 Vehicle Insurance Prediction</h1>
+        
+        {% if context and context != "Rendering" %}
+        <div class="result {% if context == 'Response-Yes' %}response-yes{% else %}response-no{% endif %}">
+            Prediction Result: {{ context }}
+        </div>
+        {% endif %}
+
+        <form method="post" action="/">
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="Gender">Gender</label>
+                    <select id="Gender" name="Gender" required>
+                        <option value="">Select Gender</option>
+                        <option value="0">Female</option>
+                        <option value="1">Male</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="Age">Age</label>
+                    <input type="number" id="Age" name="Age" min="18" max="100" required>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="Driving_License">Driving License</label>
+                    <select id="Driving_License" name="Driving_License" required>
+                        <option value="">Select Option</option>
+                        <option value="0">No</option>
+                        <option value="1">Yes</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="Previously_Insured">Previously Insured</label>
+                    <select id="Previously_Insured" name="Previously_Insured" required>
+                        <option value="">Select Option</option>
+                        <option value="0">No</option>
+                        <option value="1">Yes</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="Region_Code">Region Code</label>
+                <input type="number" id="Region_Code" name="Region_Code" step="0.01" placeholder="e.g., 28.0" required>
+            </div>
+
+            <div class="form-group">
+                <label for="Annual_Premium">Annual Premium</label>
+                <input type="number" id="Annual_Premium" name="Annual_Premium" step="0.01" placeholder="e.g., 25000.0" required>
+            </div>
+
+            <div class="form-group">
+                <label for="Policy_Sales_Channel">Policy Sales Channel</label>
+                <input type="number" id="Policy_Sales_Channel" name="Policy_Sales_Channel" step="0.01" placeholder="e.g., 26.0" required>
+            </div>
+
+            <div class="form-group">
+                <label for="Vintage">Vintage</label>
+                <input type="number" id="Vintage" name="Vintage" placeholder="e.g., 217" required>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="Vehicle_Age_lt_1_Year">Vehicle Age < 1 Year</label>
+                    <select id="Vehicle_Age_lt_1_Year" name="Vehicle_Age_lt_1_Year" required>
+                        <option value="">Select Option</option>
+                        <option value="0">No</option>
+                        <option value="1">Yes</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="Vehicle_Age_gt_2_Years">Vehicle Age > 2 Years</label>
+                    <select id="Vehicle_Age_gt_2_Years" name="Vehicle_Age_gt_2_Years" required>
+                        <option value="">Select Option</option>
+                        <option value="0">No</option>
+                        <option value="1">Yes</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="Vehicle_Damage_Yes">Vehicle Damage</label>
+                <select id="Vehicle_Damage_Yes" name="Vehicle_Damage_Yes" required>
+                    <option value="">Select Option</option>
+                    <option value="0">No</option>
+                    <option value="1">Yes</option>
+                </select>
+            </div>
+
+            <button type="submit">Predict Insurance Response</button>
+        </form>
+
+        <div style="margin-top: 20px; text-align: center;">
+            <a href="/debug-static" style="color: #667eea; text-decoration: none;">Debug Info</a>
+        </div>
+    </div>
+</body>
+</html>
