@@ -50,6 +50,36 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_DEFAULT_REGION }}
 
+      - name: Ensure aws CLI and docker are present (self-hosted)
+        run: |
+          set -e
+          # Check/install AWS CLI v2 if missing
+          if ! command -v aws >/dev/null 2>&1; then
+            echo "AWS CLI not found — attempting to install AWS CLI v2"
+            sudo apt-get update
+            sudo apt-get install -y unzip curl || true
+            curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o /tmp/awscliv2.zip
+            unzip /tmp/awscliv2.zip -d /tmp
+            sudo /tmp/aws/install || true
+            rm -rf /tmp/aws /tmp/awscliv2.zip
+          else
+            echo "aws found: $(aws --version)"
+          fi
+
+          # Check/install docker if missing
+          if ! command -v docker >/dev/null 2>&1; then
+            echo "Docker not found — attempting to install docker.io"
+            sudo apt-get update
+            sudo apt-get install -y docker.io || {
+              echo "docker.io install failed; consider installing Docker CE on the host as an administrator."
+              exit 1
+            }
+            sudo systemctl enable --now docker
+            echo "Added docker; docker version: $(sudo docker --version || true)"
+          else
+            echo "docker found: $(docker --version)"
+          fi
+
       - name: Debug docker environment (self-hosted)
         run: |
           echo "USER: $(whoami)"
@@ -64,8 +94,6 @@ jobs:
           AWS_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
           AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
         run: |
-          # If `aws` isn't installed on the self-hosted runner you can install it, or rely on the configured credentials
-          # This manual login is useful when the action-based login fails due to permissions; use sudo for docker if needed.
           aws ecr get-login-password --region "$AWS_REGION" \
             | sudo docker login --username AWS --password-stdin "$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com" \
             || aws ecr get-login-password --region "$AWS_REGION" \
@@ -77,7 +105,6 @@ jobs:
           ECR_REPOSITORY: ${{ secrets.ECR_REPO }}
           IMAGE_TAG: latest
         run: |
-          # Use sudo if the runner user does not have docker group membership
           sudo docker pull $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           sudo docker stop vehicle-app || true
           sudo docker rm vehicle-app || true
