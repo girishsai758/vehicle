@@ -19,6 +19,16 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_DEFAULT_REGION }}
 
+      - name: Install and start Docker
+        # Ensure docker binary and daemon available before any action that uses docker
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y docker.io
+          sudo systemctl start docker
+          # show docker version / info for debug
+          docker --version || sudo docker --version
+          docker info || sudo docker info || true
+
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v1
@@ -30,7 +40,7 @@ jobs:
           ECR_REPOSITORY: ${{ secrets.ECR_REPO }}
           IMAGE_TAG: latest
         run: |
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .  
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           echo "::set-output name=image::$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
 
@@ -47,25 +57,36 @@ jobs:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_DEFAULT_REGION }}
-      - name: Debug docker environment
+
+      - name: Debug docker environment (self-hosted)
         run: |
           echo "USER: $(whoami)"
           which docker || echo "docker not found in PATH"
-          docker --version || true
-          sudo docker --version || true
-          docker info || sudo docker info || echo "docker daemon not accessible"
-          id -Gn
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v1
+          docker --version || sudo docker --version || true
+          docker info || sudo docker info || echo "daemon not accessible"
+          echo "Groups: $(id -Gn)"
+
+      - name: Login to Amazon ECR (manual fallback - use sudo if docker requires it)
+        if: always()
+        env:
+          AWS_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
+          AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+        run: |
+          # If `aws` isn't installed on the self-hosted runner you can install it, or rely on the configured credentials
+          # This manual login is useful when the action-based login fails due to permissions; use sudo for docker if needed.
+          aws ecr get-login-password --region "$AWS_REGION" \
+            | sudo docker login --username AWS --password-stdin "$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com" \
+            || aws ecr get-login-password --region "$AWS_REGION" \
+            | docker login --username AWS --password-stdin "$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com"
 
       - name: Run Docker Image to serve users
         env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_DEFAULT_REGION }}.amazonaws.com
           ECR_REPOSITORY: ${{ secrets.ECR_REPO }}
           IMAGE_TAG: latest
         run: |
-          docker pull $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          docker stop vehicle-app || true
-          docker rm vehicle-app || true
-          docker run -d --name vehicle-app -p 80:5000 $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          # Use sudo if the runner user does not have docker group membership
+          sudo docker pull $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          sudo docker stop vehicle-app || true
+          sudo docker rm vehicle-app || true
+          sudo docker run -d --name vehicle-app -p 80:5000 $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
