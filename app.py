@@ -56,5 +56,6 @@ async def make_prediction(request: Request):
         "form_data": dict(form_data)
     })
 
+# FIXED LINE - Changed "__app__" to "__main__"
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=5000, reload=True)
+    uvicorn.run("app:app", host="0.0.0.0", port=5000, reload=True)
