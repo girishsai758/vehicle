@@ -101,4 +101,4 @@ jobs:
           $DOCKER_CMD pull $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           $DOCKER_CMD stop vehicle-app || true
           $DOCKER_CMD rm vehicle-app || true
-          $DOCKER_CMD run -d --name vehicle-app -p 80:5000 $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          $DOCKER_CMD run -d --name vehicle-app -p 5000:5000 $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
